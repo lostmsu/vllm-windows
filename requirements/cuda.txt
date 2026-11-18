@@ -48,5 +48,4 @@ quack-kernels==0.6.5; sys_platform != "win32" or platform_machine != 'ARM64'  # 
 tokenspeed-mla==2.0.3; platform_system == "Linux"
 
 # Humming kernels for quantization gemm
-humming-kernels[cu13]==0.1.19; sys_platform != "win32"
-humming-kernels[cu13] @ git+https://github.com/SystemPanic/humming-windows.git@v0.1.17 ; sys_platform == "win32"
+humming-kernels[cu13]==0.1.19  # upstream publishes win_amd64/win_arm64 wheels
