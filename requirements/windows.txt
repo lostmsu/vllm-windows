@@ -1,4 +1,5 @@
 winloop
-triton-windows==3.8.0.post29
+triton-windows==3.9.0.post30; platform_machine != 'ARM64'
+triton-windows==3.8.0.post29; platform_machine == 'ARM64'
 xformers==0.0.35
 portalocker
