@@ -63,25 +63,15 @@ install(CODE "set(CMAKE_INSTALL_PREFIX \"\${CMAKE_INSTALL_PREFIX}/vllm/\")" ALL_
 if (WIN32)
   set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xcompiler=/Zc:preprocessor")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Zc:preprocessor")
-endif()
 
-FetchContent_MakeAvailable(vllm-flash-attn)
-message(STATUS "vllm-flash-attn is available at ${vllm-flash-attn_SOURCE_DIR}")
-
-# After MakeAvailable, also force the flag onto the actual targets in case
-# the subproject's CMakeLists.txt overrides CMAKE_CUDA_FLAGS with its own
-# target_compile_options.
-if (WIN32)
-  foreach(_fa_tgt _vllm_fa2_C _vllm_fa3_C)
-    if(TARGET ${_fa_tgt})
-      target_compile_options(${_fa_tgt} PRIVATE
-        $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/Zc:preprocessor>
-        $<$<COMPILE_LANGUAGE:CXX>:/Zc:preprocessor>
-      )
-    endif()
-  endforeach()
-  find_package(PythonInterp)
-  find_package(Python)  
+  # windows_flash_attn.patch also edits flash-attn's CMakeLists.txt (it adds
+  # Python 3.14 to the supported versions), so the sources must be patched
+  # before the subproject is configured: populate, patch, then add it, which
+  # is FetchContent_MakeAvailable split around the patch step.
+  FetchContent_GetProperties(vllm-flash-attn)
+  if(NOT vllm-flash-attn_POPULATED)
+    FetchContent_Populate(vllm-flash-attn)
+  endif()
   find_package(Git REQUIRED)
   set(_dg_fa_patch
     "${CMAKE_CURRENT_SOURCE_DIR}/cmake/patches/windows_flash_attn.patch")
@@ -107,7 +97,26 @@ if (WIN32)
     endif()
     message(STATUS "Applied windows_flash_attn.patch to flash-attention")
   endif()
-  execute_process(COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/fix_cutlass_msvc.py ${vllm-flash-attn_SOURCE_DIR}/csrc/cutlass)
+  execute_process(COMMAND ${Python_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/fix_cutlass_msvc.py ${vllm-flash-attn_SOURCE_DIR}/csrc/cutlass)
+
+  add_subdirectory(${vllm-flash-attn_SOURCE_DIR} ${vllm-flash-attn_BINARY_DIR})
+else()
+  FetchContent_MakeAvailable(vllm-flash-attn)
+endif()
+message(STATUS "vllm-flash-attn is available at ${vllm-flash-attn_SOURCE_DIR}")
+
+# Also force the flag onto the actual targets in case the subproject's
+# CMakeLists.txt overrides CMAKE_CUDA_FLAGS with its own
+# target_compile_options.
+if (WIN32)
+  foreach(_fa_tgt _vllm_fa2_C _vllm_fa3_C)
+    if(TARGET ${_fa_tgt})
+      target_compile_options(${_fa_tgt} PRIVATE
+        $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/Zc:preprocessor>
+        $<$<COMPILE_LANGUAGE:CXX>:/Zc:preprocessor>
+      )
+    endif()
+  endforeach()
 endif()
 
 # Restore the install prefix after FA's install rules
