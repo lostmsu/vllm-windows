@@ -3200,6 +3200,8 @@ class VllmConfig:
         unsupported = None
         if not current_platform.is_cuda_alike():
             unsupported = "it is only supported on CUDA and ROCm"
+        elif os.name == "nt":
+            unsupported = "its driver VMM bindings do not support Windows"
         elif cache_config.kv_cache_memory_bytes is not None:
             unsupported = (
                 "it sizes the KV cache from measured memory, which "
