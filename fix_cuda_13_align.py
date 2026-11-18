@@ -25,8 +25,8 @@ if cuda_path is None:
     raise ValueError("No CUDA_HOME, CUDA_PATH or CUDA_ROOT is found on environment")
 cuda_version = get_nvcc_cuda_version(cuda_path)
 cuda_major, cuda_minor = str(cuda_version).split(".")[:2]
-#CUDA 13.0 to 13.2 has a bug with MSVC when passing over-aligned types (like alignas(128)) by value as function parameters. Nvidia acknowledged it and will be fixed on CUDA 13.3, fix if lower.
-if int(cuda_major) == 13 and int(cuda_minor) < 3:
+#CUDA 13 cuda.h (13.4 included) aligns CUtensorMap to 128 bytes, which MSVC rejects for by-value parameters.
+if int(cuda_major) >= 13:
     cuda_h_file = os.path.join(cuda_path, "include", "cuda.h")
 
     if os.path.exists(cuda_h_file):

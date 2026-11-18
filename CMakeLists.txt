@@ -280,6 +280,24 @@ if(VLLM_GPU_LANG STREQUAL "CUDA")
 endif()
 
 #
+# CUDA 13 cuda.h declares CUtensorMap alignas(128), which MSVC rejects for
+# by-value (kernel) parameters (C2719). Compile against a build-local copy that
+# restores the CUDA 12 alignment of 64, which the driver API still requires.
+#
+if(WIN32 AND VLLM_GPU_LANG STREQUAL "CUDA")
+  file(READ "${CUDA_TOOLKIT_ROOT_DIR}/include/cuda.h" _VLLM_CUDA_H)
+  if(_VLLM_CUDA_H MATCHES "lignas[(]128[)]")
+    string(REPLACE "alignas(128)" "alignas(64)" _VLLM_CUDA_H "${_VLLM_CUDA_H}")
+    string(REPLACE "_Alignas(128)" "_Alignas(64)" _VLLM_CUDA_H "${_VLLM_CUDA_H}")
+    set(_VLLM_CUDA_H_DIR "${CMAKE_BINARY_DIR}/msvc_cuda_include")
+    file(WRITE "${_VLLM_CUDA_H_DIR}/cuda.h.in" "${_VLLM_CUDA_H}")
+    configure_file("${_VLLM_CUDA_H_DIR}/cuda.h.in" "${_VLLM_CUDA_H_DIR}/cuda.h" COPYONLY)
+    include_directories(BEFORE "${_VLLM_CUDA_H_DIR}")
+    message(STATUS "Using cuda.h with 64-byte CUtensorMap alignment for MSVC")
+  endif()
+endif()
+
+#
 # Use FetchContent for C++ dependencies that are compiled as part of vLLM's build process.
 # setup.py will override FETCHCONTENT_BASE_DIR to play nicely with sccache.
 # Each dependency that produces build artifacts should override its BINARY_DIR to avoid

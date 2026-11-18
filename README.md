@@ -113,10 +113,10 @@ git config --global core.longpaths true
 git config --system core.longpaths true
 ````
 
-##### IMPORTANT FOR CUDA 13.0 TO CUDA 13.2 BUILDS:
-CUDA 13.0 to CUDA 13.2 cuda.h currently has 128 byte alignment. MSVC does not support yet passing over-aligned types like alignas(128) by value as function parameters. CUDA 13.3 will revert back to 64 byte alignment, but if you have installed a CUDA 13 version before 13.3, you need to patch it.
+##### NOTE FOR CUDA 13 BUILDS:
+CUDA 13 cuda.h (13.4 included) declares `CUtensorMap` with 128 byte alignment. MSVC does not support passing over-aligned types like alignas(128) by value as function parameters. The vLLM build works around this automatically by compiling against a build-local copy of cuda.h with the CUDA 12 alignment of 64 bytes.
 
-To patch, open an elevated command line (execute cmd.exe as Administrator), and run `python C:\vllm-windows\fix_cuda_13_align.py` once time before building the project.
+To patch the installed toolkit itself (e.g. for other projects or runtime JIT compilers that include cuda.h), open an elevated command line (execute cmd.exe as Administrator), and run `python C:\vllm-windows\fix_cuda_13_align.py` once.
 
 7. Build & install:
 ```
