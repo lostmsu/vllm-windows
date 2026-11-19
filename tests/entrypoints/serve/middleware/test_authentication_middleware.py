@@ -135,6 +135,16 @@ def test_auto_discovered_protected_routes_require_auth(task_routes):
         )
 
 
+def test_x_api_key_header_authenticates():
+    """Anthropic clients (POST /v1/messages) send the key in x-api-key."""
+    client = TestClient(_create_app_with_mock_routes([("/v1/messages", ["POST"])]))
+
+    resp = client.post("/v1/messages", headers={"x-api-key": "valid-token"})
+    assert resp.status_code == 200
+    resp = client.post("/v1/messages", headers={"x-api-key": "wrong"})
+    assert resp.status_code == 401
+
+
 def test_auto_discovered_unprotected_routes_no_auth(task_routes):
     """For every auto-discovered route that does NOT start with a guarded
     prefix, verify that no authentication is required."""

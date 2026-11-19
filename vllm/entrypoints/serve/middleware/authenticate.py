@@ -13,7 +13,8 @@ GUARDED_PREFIX = ("/v1", "/v2", "/inference", "/cohere")
 
 class AuthenticationMiddleware:
     """Pure ASGI middleware that authenticates each request by checking
-    if the Authorization Bearer token exists and equals anyof "{api_key}".
+    if the Authorization Bearer token, or without one the x-api-key header
+    that Anthropic clients send, exists and equals anyof "{api_key}".
 
     Notes
     -----
@@ -29,12 +30,14 @@ class AuthenticationMiddleware:
 
     def verify_token(self, headers: Headers) -> bool:
         authorization_header_value = headers.get("Authorization")
-        if not authorization_header_value:
-            return False
-
-        scheme, _, param = authorization_header_value.partition(" ")
-        if scheme.lower() != "bearer":
-            return False
+        if authorization_header_value:
+            scheme, _, param = authorization_header_value.partition(" ")
+            if scheme.lower() != "bearer":
+                return False
+        else:
+            param = headers.get("x-api-key")
+            if not param:
+                return False
 
         param_hash = hashlib.sha256(param.encode("utf-8")).digest()
 
