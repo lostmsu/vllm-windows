@@ -2,6 +2,7 @@
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
 import contextlib
 import gc
+import sys
 import time
 from collections.abc import Generator
 from dataclasses import dataclass, field
@@ -49,15 +50,20 @@ _UMA_MIN_RELEASE_BYTES = 512 * MiB_bytes
 
 
 def release_device_memory_under_pressure(device: torch.device) -> bool:
-    """On integrated (UMA) GPUs, release caching-allocator memory back to the
-    OS when system memory pressure is high. The OS may start thrashing before
-    an allocation failure would trigger PyTorch's own cache release.
+    """Release caching-allocator memory back to the driver under memory
+    pressure, where the driver backs allocations with system memory instead of
+    failing them, so PyTorch's own cache release on allocation failure never
+    runs: on integrated (UMA) GPUs, the OS may start thrashing first; on
+    Windows, WDDM spills VRAM overflow into shared system memory.
 
     Returns:
         True if memory was released.
 
     """
-    if device.type != "cuda" or not current_platform.is_integrated_gpu(device.index):
+    if device.type != "cuda":
+        return False
+    integrated = current_platform.is_integrated_gpu(device.index)
+    if not integrated and sys.platform != "win32":
         return False
 
     releasable = torch.accelerator.memory_reserved(
@@ -66,9 +72,13 @@ def release_device_memory_under_pressure(device: torch.device) -> bool:
     if releasable < _UMA_MIN_RELEASE_BYTES:
         return False
 
-    # cudaMemGetInfo underreports free memory on UMA, see MemorySnapshot.measure
-    mem = psutil.virtual_memory()
-    if mem.available > (1 - _UMA_PRESSURE_THRESHOLD) * mem.total:
+    if integrated:
+        # cudaMemGetInfo underreports free memory on UMA, see
+        # MemorySnapshot.measure
+        mem = psutil.virtual_memory()
+        if mem.available > (1 - _UMA_PRESSURE_THRESHOLD) * mem.total:
+            return False
+    elif torch.cuda.mem_get_info(device)[0] > releasable:
         return False
 
     torch.accelerator.synchronize(device)
