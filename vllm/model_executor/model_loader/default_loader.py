@@ -40,6 +40,7 @@ from vllm.model_executor.model_loader.weight_utils import (
     np_cache_weights_iterator,
     pt_weights_iterator,
     resolve_mm_encoder_only_lm_prefixes,
+    safetensors_files_from_index,
     safetensors_weights_iterator,
 )
 from vllm.tracing import instrument
@@ -234,6 +235,14 @@ class DefaultModelLoader(BaseModelLoader):
                 if pattern.endswith(".safetensors"):
                     use_safetensors = True
                 break
+
+        if (
+            not hf_weights_files
+            and allow_patterns_overrides is None
+            and "*.safetensors" in allow_patterns
+        ):
+            hf_weights_files = safetensors_files_from_index(hf_folder, index_file)
+            use_safetensors = bool(hf_weights_files)
 
         if use_safetensors:
             # For models like Mistral-7B-Instruct-v0.3
