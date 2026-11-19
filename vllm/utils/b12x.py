@@ -2,6 +2,8 @@
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
 """Accessors for the optional ``b12x`` package."""
 
+import atexit
+import contextlib
 import importlib
 import importlib.util
 from collections.abc import Callable, Hashable, Iterable
@@ -79,6 +81,40 @@ def get_b12x_fused_moe() -> ModuleType | None:
 
 def get_b12x_paged_attention() -> ModuleType | None:
     return _get_submodule("b12x.attention.paged")
+
+
+_RETAINED_PROGRAMS: tuple[Any, Any] | None = None
+
+
+def retain_b12x_programs() -> None:
+    """Keep every b12x program this thread resolves from now on loaded.
+
+    When a b12x preparation session ends (e.g. a lazy preparation for a shape
+    first seen while serving), it evicts programs no prepared plan retains.
+    Without retention that unloads the CUDA modules of kernels that CUDA
+    graphs captured earlier still launch, and the next replay faults.
+    """
+    global _RETAINED_PROGRAMS
+    if _RETAINED_PROGRAMS is not None:
+        return
+    compile_plan = _import_submodule("b12x._lib.compile_plan")
+    retain = getattr(compile_plan, "retain_compiled_programs", None)
+    if retain is None:
+        return
+    context = retain()
+    _RETAINED_PROGRAMS = (context, context.__enter__())
+    atexit.register(_release_b12x_programs)
+
+
+def _release_b12x_programs() -> None:
+    global _RETAINED_PROGRAMS
+    if _RETAINED_PROGRAMS is None:
+        return
+    context, _ = _RETAINED_PROGRAMS
+    _RETAINED_PROGRAMS = None
+    # Exiting from a thread other than the one that entered fails to reset.
+    with contextlib.suppress(ValueError):
+        context.__exit__(None, None, None)
 
 
 def b12x_warmup_token_counts(
